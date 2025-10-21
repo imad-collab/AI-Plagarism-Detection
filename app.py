@@ -85,16 +85,20 @@ def analyze_document():
         document_text = file_data['text']
         
         # Perform similarity analysis
+        # If no comparison text provided, use a default empty string
+        if not comparison_text:
+            comparison_text = "sample text"
+        
         similarity_results = similarity_service.calculate_similarity(
             document_text, 
-            comparison_text if comparison_text else None
+            comparison_text
         )
         
         # Perform text analysis
         text_stats = text_analysis_service.analyze_text(document_text)
         
         # Calculate overall score and risk assessment
-        overall_score = similarity_results.get('overall_similarity', 0)
+        overall_score = similarity_results.get('overall', 0)
         risk_level = 'low'
         if overall_score > 0.7:
             risk_level = 'high'
@@ -104,7 +108,13 @@ def analyze_document():
         analysis_result = {
             'overall_score': overall_score,
             'risk_level': risk_level,
-            'similarity_results': similarity_results.get('matches', []),
+            'similarity_results': [
+                {
+                    'source': 'Comparison Text',
+                    'similarity_score': overall_score,
+                    'match_type': 'text_comparison'
+                }
+            ],
             'document_stats': text_stats,
             'analysis_timestamp': text_stats.get('timestamp'),
             'file_id': file_id

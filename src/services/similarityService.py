@@ -108,6 +108,26 @@ class SimilarityService:
     def calculate_similarity(self, text1, text2):
         """Calculate overall similarity using multiple algorithms."""
         try:
+            # Handle empty or None text2
+            if not text2 or text2.strip() == '':
+                # Self-analysis: check for repetition within the document
+                # Split text into chunks and compare
+                sentences = sent_tokenize(text1)
+                if len(sentences) < 2:
+                    return {
+                        'overall': 0.0,
+                        'cosine': 0.0,
+                        'jaccard': 0.0,
+                        'levenshtein': 0.0
+                    }
+                
+                # Compare first half with second half
+                mid = len(sentences) // 2
+                text1_first = ' '.join(sentences[:mid])
+                text1_second = ' '.join(sentences[mid:])
+                text2 = text1_second
+                text1 = text1_first
+            
             # Calculate different similarity metrics
             cosine_sim = self.calculate_cosine_similarity(text1, text2)
             jaccard_sim = self.calculate_jaccard_similarity(text1, text2)
