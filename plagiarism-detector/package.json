@@ -1,0 +1,14 @@
+{
+  "name": "plagiarism-detector",
+  "version": "1.0.0",
+  "description": "AI-powered plagiarism detection application",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js",
+    "test": "jest"
+  },
+  "keywords": ["plagiarism", "detection", "ai", "text-analysis"],
+  "author": "Your Name",
+  "license": "MIT"
+}
