@@ -56,8 +56,8 @@ def upload_file():
                 'success': True,
                 'file_id': result['file_id'],
                 'filename': result['filename'],
-                'text_length': len(result['text']),
-                'word_count': len(result['text'].split())
+                'text_length': result['text_length'],
+                'word_count': result['word_count']
             })
         else:
             return jsonify({'success': False, 'error': result['error']}), 400
