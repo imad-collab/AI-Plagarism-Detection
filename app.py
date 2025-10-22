@@ -6,6 +6,7 @@ from src.services.fileUploadService import FileUploadService
 from src.services.advancedSimilarityService import AdvancedSimilarityService
 from src.services.langchainPlagiarismService import LangChainPlagiarismService
 from src.services.textAnalysisService import TextAnalysisService
+from src.services.textHighlighter import TextHighlighter
 
 app = Flask(__name__, template_folder='templates', static_folder='public')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
@@ -21,8 +22,27 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 # Initialize services
 file_upload_service = FileUploadService(app.config['UPLOAD_FOLDER'])
 similarity_service = AdvancedSimilarityService()
-langchain_service = LangChainPlagiarismService()  # New LangChain service
+langchain_service = None  # Lazy initialization to avoid startup delays
 text_analysis_service = TextAnalysisService()
+text_highlighter = TextHighlighter()  # Initialize text highlighter
+
+def get_langchain_service():
+    """Get or initialize LangChain service lazily."""
+    global langchain_service
+    if langchain_service is None:
+        try:
+            from src.services.langchainPlagiarismService import LangChainPlagiarismService
+            langchain_service = LangChainPlagiarismService()
+            logger.info("LangChain service initialized successfully")
+            return langchain_service
+        except Exception as e:
+            logger.error(f"Failed to initialize LangChain service: {e}")
+            langchain_service = False  # Mark as failed to avoid retrying
+            return None
+    elif langchain_service is False:
+        return None
+    else:
+        return langchain_service
 
 @app.route('/')
 def index():
@@ -88,18 +108,36 @@ def analyze_document():
         document_text = file_data['text']
         
         # Use LangChain service for enhanced semantic analysis
+        langchain_svc = None
         if use_langchain:
             logger.info(f"Using LangChain service for file: {file_id}")
-            langchain_results = langchain_service.calculate_plagiarism_score(
+            langchain_svc = get_langchain_service()
+            if langchain_svc is None:
+                logger.warning("LangChain service failed to initialize, falling back to advanced similarity")
+                use_langchain = False
+        
+        if use_langchain and langchain_svc:
+            langchain_results = langchain_svc.calculate_plagiarism_score(
                 document_text, 
-                comparison_text if comparison_text else None
+                comparison_text if comparison_text else ""
             )
             
             # Also get advanced similarity service results for comparison
-            advanced_score = similarity_service.calculate_overall_similarity(
+            advanced_data = similarity_service.calculate_overall_similarity(
                 document_text, 
                 comparison_text if comparison_text else "default analysis"
             )
+            
+            # Handle both float and dict returns from calculate_overall_similarity
+            if isinstance(advanced_data, dict):
+                advanced_score = float(advanced_data.get('overall', 0.0))
+            else:
+                advanced_score = float(advanced_data)
+            
+            # Ensure advanced_score is a valid float
+            if not isinstance(advanced_score, (int, float)) or advanced_score < 0:
+                advanced_score = 0.0
+                
             advanced_results = {
                 'overall': advanced_score,
                 'semantic': advanced_score * 0.9,
@@ -126,10 +164,17 @@ def analyze_document():
             if not comparison_text:
                 comparison_text = "default analysis"
             
-            advanced_score = similarity_service.calculate_overall_similarity(
+            advanced_data = similarity_service.calculate_overall_similarity(
                 document_text, 
                 comparison_text
             )
+            
+            # Handle both float and dict returns from calculate_overall_similarity
+            if isinstance(advanced_data, dict):
+                advanced_score = float(advanced_data.get('overall', 0.0))
+            else:
+                advanced_score = float(advanced_data)
+                
             similarity_results = {
                 'overall': advanced_score,
                 'semantic': advanced_score * 0.9,
@@ -226,6 +271,74 @@ def get_document(file_id):
         logger.error(f"Get document error: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/documents/<file_id>/content')
+def get_document_content(file_id):
+    """Get document content (full text)"""
+    try:
+        file_data = file_upload_service.get_file_data(file_id)
+        if not file_data:
+            return jsonify({'success': False, 'error': 'Document not found'}), 404
+        
+        return jsonify({
+            'success': True,
+            'file_id': file_id,
+            'filename': file_data['filename'],
+            'text': file_data['text'],
+            'text_length': len(file_data['text'])
+        })
+        
+    except Exception as e:
+        logger.error(f"Get document content error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/debug/highlight-test', methods=['POST'])
+def debug_highlight_test():
+    """Debug endpoint to test highlighting with detailed information"""
+    try:
+        data = request.get_json()
+        file_id = data.get('file_id')
+        comparison_text = data.get('comparison_text', '')
+        
+        if not file_id:
+            return jsonify({'success': False, 'error': 'No file_id provided'}), 400
+        
+        # Get the actual document
+        file_data = file_upload_service.get_file_data(file_id)
+        if not file_data:
+            return jsonify({'success': False, 'error': 'Document not found'}), 404
+        
+        document_text = file_data['text']
+        
+        logger.info(f"Debug highlight test:")
+        logger.info(f"  Document length: {len(document_text)} chars")
+        logger.info(f"  Comparison text length: {len(comparison_text)} chars")
+        logger.info(f"  Document preview: {document_text[:200]}...")
+        logger.info(f"  Comparison preview: {comparison_text[:200]}...")
+        
+        # Run the highlighting
+        result = text_highlighter.highlight_suspicious_text(
+            comparison_text, 
+            document_text,
+            threshold=0.60
+        )
+        
+        return jsonify({
+            'success': True,
+            'debug_info': {
+                'document_length': len(document_text),
+                'comparison_length': len(comparison_text),
+                'document_preview': document_text[:300],
+                'comparison_preview': comparison_text[:300],
+                'file_id': file_id,
+                'filename': file_data['filename']
+            },
+            'highlighting_result': result
+        })
+        
+    except Exception as e:
+        logger.error(f"Debug highlight test error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/langchain-analysis', methods=['POST'])
 def langchain_analysis():
     """Dedicated LangChain semantic analysis endpoint"""
@@ -238,16 +351,26 @@ def langchain_analysis():
             return jsonify({'success': False, 'error': 'Document text too short'}), 400
         
         # Perform LangChain analysis
-        langchain_results = langchain_service.calculate_plagiarism_score(
+        langchain_svc = get_langchain_service()
+        if langchain_svc is None:
+            return jsonify({'success': False, 'error': 'LangChain service not available'}), 503
+            
+        langchain_results = langchain_svc.calculate_plagiarism_score(
             document_text,
-            comparison_text if comparison_text else None
+            comparison_text if comparison_text else ""
         )
         
-        # Also compare with advanced service
-        advanced_results = similarity_service.calculate_plagiarism_score(
+        # Also compare with advanced service (use calculate_overall_similarity)
+        advanced_data = similarity_service.calculate_overall_similarity(
             document_text,
             comparison_text if comparison_text else "default"
         )
+        
+        # Handle both float and dict returns from calculate_overall_similarity
+        if isinstance(advanced_data, dict):
+            advanced_results = advanced_data
+        else:
+            advanced_results = {'overall': float(advanced_data)}
         
         return jsonify({
             'success': True,
@@ -262,6 +385,45 @@ def langchain_analysis():
         
     except Exception as e:
         logger.error(f"LangChain analysis error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/highlight', methods=['POST'])
+def highlight_text():
+    """Highlight suspicious text passages in pasted content."""
+    try:
+        data = request.get_json()
+        original_text = data.get('original_text', '')
+        reference_text = data.get('reference_text', '')
+        threshold = data.get('threshold', 0.7)
+        
+        if not original_text or len(original_text.strip()) < 10:
+            return jsonify({'success': False, 'error': 'Original text too short'}), 400
+        
+        if not reference_text or len(reference_text.strip()) < 10:
+            return jsonify({'success': False, 'error': 'Reference text too short'}), 400
+        
+        # Highlight suspicious text
+        highlighted_data = text_highlighter.highlight_suspicious_text(
+            original_text,
+            reference_text,
+            threshold
+        )
+        
+        # Get statistics
+        stats = text_highlighter.get_highlight_statistics(highlighted_data)
+        
+        return jsonify({
+            'success': True,
+            'highlighted_html': highlighted_data.get('highlighted_html', ''),
+            'plagiarism_percentage': highlighted_data.get('plagiarism_percentage', 0),
+            'total_sentences': highlighted_data.get('total_sentences', 0),
+            'highlighted_sentences': highlighted_data.get('highlighted_sentences', 0),
+            'similarity_details': highlighted_data.get('similarity_details', []),
+            'statistics': stats
+        })
+        
+    except Exception as e:
+        logger.error(f"Text highlighting error: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.errorhandler(413)
@@ -292,4 +454,4 @@ def internal_error(e):
 if __name__ == '__main__':
     print("Starting AI Plagiarism Detector...")
     print("Access the application at: http://localhost:5001")
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    app.run(debug=False, host='0.0.0.0', port=5001)

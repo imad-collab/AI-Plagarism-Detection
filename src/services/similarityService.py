@@ -81,8 +81,17 @@ class SimilarityService:
             tokens1 = set(word_tokenize(self.preprocess_text(text1)))
             tokens2 = set(word_tokenize(self.preprocess_text(text2)))
             
-            # Calculate Jaccard similarity
-            return float(jaccard(tokens1, tokens2))
+            # Calculate Jaccard similarity: |intersection| / |union|
+            if len(tokens1) == 0 and len(tokens2) == 0:
+                return 1.0
+            if len(tokens1) == 0 or len(tokens2) == 0:
+                return 0.0
+            
+            intersection = len(tokens1 & tokens2)
+            union = len(tokens1 | tokens2)
+            
+            jaccard_similarity = intersection / union if union > 0 else 0.0
+            return float(jaccard_similarity)
         
         except Exception as e:
             print(f"Error calculating Jaccard similarity: {e}")

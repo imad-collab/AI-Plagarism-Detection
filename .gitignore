@@ -165,3 +165,12 @@ jspm_packages/
 
 # Build directories
 dist/
+
+# User uploaded files
+uploads/
+*.docx
+*.pdf
+
+# Temporary files
+*.log
+/tmp/
