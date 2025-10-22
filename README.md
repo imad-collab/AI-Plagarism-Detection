@@ -1,15 +1,24 @@
 # 🔍 AI Plagiarism Detection System
 
-A comprehensive web-based plagiarism detection system that uses advanced machine learning and natural language processing techniques to identify text similarity and potential plagiarism.
+A comprehensive web-based plagiarism detection system powered by **LangChain** and advanced machine learning. Uses semantic embeddings and multi-algorithm ensemble for highly accurate plagiarism detection.
 
 ## ✨ Features
 
+- **🤖 LangChain Integration**: AI-powered semantic analysis using HuggingFace embeddings
 - **Multi-format Document Support**: PDF, DOC, DOCX, TXT, RTF files
-- **Advanced Similarity Detection**: Multiple algorithms including cosine similarity, Jaccard similarity, and Levenshtein distance
+- **🧠 Advanced Similarity Detection**: 7+ algorithms including:
+  - Semantic embeddings (LangChain)
+  - TF-IDF similarity
+  - Cosine similarity
+  - Jaccard similarity
+  - Sequence matching
+  - Token overlap
+  - Sentence-level semantic analysis
 - **Web-based Interface**: Beautiful, responsive UI with drag-and-drop file upload
 - **Real-time Analysis**: Fast processing with detailed results display
 - **Comprehensive Statistics**: Document analysis with readability metrics and linguistic features
 - **RESTful API**: Complete API endpoints for integration with other systems
+- **Ensemble Approach**: Combines LangChain semantic analysis with traditional ML for maximum accuracy
 
 ## 🚀 Quick Start
 
@@ -85,14 +94,26 @@ Content-Type: multipart/form-data
 # file: [document file]
 ```
 
-#### Analyze Document
+#### Analyze Document (with LangChain)
 ```bash
 POST /api/analyze
 Content-Type: application/json
 
 {
   "file_id": "uploaded_file_id",
-  "comparison_text": "optional comparison text"
+  "comparison_text": "optional comparison text",
+  "use_langchain": true  # Enable LangChain semantic analysis
+}
+```
+
+#### LangChain Semantic Analysis
+```bash
+POST /api/langchain-analysis
+Content-Type: application/json
+
+{
+  "document_text": "Your document text",
+  "comparison_text": "Text to compare against"
 }
 ```
 
@@ -104,44 +125,76 @@ GET /api/documents/{file_id}
 ## 🔧 Technology Stack
 
 ### Backend
+- **LangChain**: Agentic AI framework with semantic embeddings
 - **Flask**: Web framework
+- **HuggingFace Embeddings**: Semantic text understanding (all-MiniLM-L6-v2)
 - **NLTK**: Natural language processing
 - **scikit-learn**: Machine learning algorithms
+- **Sentence Transformers**: Advanced text embeddings
 - **NumPy & Pandas**: Data processing
 - **TextDistance**: String similarity algorithms
-- **PyPDF2**: PDF text extraction
-- **python-docx**: Word document processing
+## 🤖 LangChain Integration
 
-### Frontend
-- **HTML5**: Modern markup
-- **CSS3**: Responsive design with gradients and animations
-- **JavaScript**: Interactive functionality and API integration
+The system now integrates **LangChain** for advanced semantic analysis and agentic capabilities.
 
-### Algorithms
-- **Cosine Similarity**: Vector-based text comparison
-- **Jaccard Similarity**: Set-based similarity measurement
-- **Levenshtein Distance**: Edit distance calculation
-- **TF-IDF Vectorization**: Term frequency analysis
+### LangChain-Powered Features
+
+1. **Semantic Embeddings**: HuggingFace embeddings for deep semantic understanding
+2. **Text Chunking**: Intelligent document segmentation for analysis
+3. **Vector Similarity**: Advanced semantic similarity calculations
+4. **Multi-level Analysis**: Sentence, chunk, and document-level analysis
+5. **Ensemble Scoring**: Combines LangChain semantic analysis (65%) with traditional ML (35%)
+
+### LangChain Algorithms (7 Methods)
+
+- **Semantic Similarity** (20%): Deep semantic understanding via embeddings
+- **Chunk-Level Analysis** (15%): TF-IDF similarity at chunk boundaries
+- **Semantic Chunks** (15%): Semantic matching of text chunks
+- **Sentence Semantic** (15%): LangChain sentence-level semantics
+- **TF-IDF Similarity** (12%): Traditional n-gram matching
+- **Sequence Matching** (12%): Difflib-based sequence comparison
+- **Token Overlap** (11%): Jaccard index for word overlap
+
+### Example Usage
+
+```python
+from src.services.langchainPlagiarismService import LangChainPlagiarismService
+
+service = LangChainPlagiarismService()
+results = service.calculate_plagiarism_score(
+    document_text="Your document...",
+    comparison_text="Text to compare..."
+)
+
+print(f"Overall Score: {results['overall']}")
+print(f"Semantic Similarity: {results['semantic']}")
+print(f"Methodology: {results['methodology']}")
+```
+
+**For detailed LangChain documentation, see: [LANGCHAIN_INTEGRATION.md](LANGCHAIN_INTEGRATION.md)**
 
 ## 📁 Project Structure
 
 ```
 plagiarism-detector/
-├── app.py                          # Main Flask application
-├── requirements.txt                # Python dependencies
-├── sample_document.txt            # Test document
+├── app.py                               # Main Flask application
+├── requirements.txt                     # Python dependencies
+├── LANGCHAIN_INTEGRATION.md            # LangChain documentation
+├── sample_document.txt                 # Test document
 ├── templates/
-│   └── index.html                 # Web interface
+│   └── index.html                      # Web interface
 ├── src/
 │   ├── services/
-│   │   ├── fileUploadService.py   # File handling and text extraction
-│   │   ├── similarityService.py   # Plagiarism detection algorithms
-│   │   └── textAnalysisService.py # Text analysis and statistics
+│   │   ├── langchainPlagiarismService.py    # NEW: LangChain semantic analysis
+│   │   ├── advancedSimilarityService.py     # 9-algorithm ensemble
+│   │   ├── fileUploadService.py             # File handling and text extraction
+│   │   ├── similarityService.py             # Original similarity algorithms
+│   │   └── textAnalysisService.py           # Text analysis and statistics
 │   └── utils/
-│       ├── textProcessor.py       # Text preprocessing utilities
-│       └── validators.py          # File and content validation
-├── uploads/                       # Uploaded files storage
-└── tests/                        # Test files
+│       ├── textProcessor.py            # Text preprocessing utilities
+│       └── validators.py               # File and content validation
+├── uploads/                            # Uploaded files storage
+└── tests/                              # Test files
     ├── unit/
     └── integration/
 ```
@@ -151,9 +204,13 @@ plagiarism-detector/
 1. **Document Upload**: Files are securely uploaded and validated
 2. **Text Extraction**: Text is extracted from various file formats
 3. **Preprocessing**: Text is cleaned, tokenized, and normalized
-4. **Similarity Analysis**: Multiple algorithms calculate similarity scores
-5. **Statistical Analysis**: Document features and readability metrics are computed
-6. **Results Compilation**: All analyses are combined into a comprehensive report
+4. **LangChain Analysis**:
+   - Text is split into chunks using RecursiveCharacterTextSplitter
+   - HuggingFace embeddings generate semantic representations
+   - Multiple similarity metrics are calculated
+5. **Ensemble Scoring**: Results from LangChain and traditional ML are combined
+6. **Statistical Analysis**: Document features and readability metrics are computed
+7. **Results Compilation**: All analyses are combined into a comprehensive report
 
 ## 🎨 Features in Detail
 

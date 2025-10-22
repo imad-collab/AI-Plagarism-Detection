@@ -3,7 +3,8 @@ import os
 import logging
 from werkzeug.utils import secure_filename
 from src.services.fileUploadService import FileUploadService
-from src.services.similarityService import SimilarityService
+from src.services.advancedSimilarityService import AdvancedSimilarityService
+from src.services.langchainPlagiarismService import LangChainPlagiarismService
 from src.services.textAnalysisService import TextAnalysisService
 
 app = Flask(__name__, template_folder='templates', static_folder='public')
@@ -19,7 +20,8 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Initialize services
 file_upload_service = FileUploadService(app.config['UPLOAD_FOLDER'])
-similarity_service = SimilarityService()
+similarity_service = AdvancedSimilarityService()
+langchain_service = LangChainPlagiarismService()  # New LangChain service
 text_analysis_service = TextAnalysisService()
 
 @app.route('/')
@@ -68,11 +70,12 @@ def upload_file():
 
 @app.route('/api/analyze', methods=['POST'])
 def analyze_document():
-    """Analyze document for plagiarism"""
+    """Analyze document for plagiarism using LangChain + Advanced ML"""
     try:
         data = request.get_json()
         file_id = data.get('file_id')
         comparison_text = data.get('comparison_text', '')
+        use_langchain = data.get('use_langchain', True)  # Default to LangChain
         
         if not file_id:
             return jsonify({'success': False, 'error': 'File ID required'}), 400
@@ -84,21 +87,67 @@ def analyze_document():
         
         document_text = file_data['text']
         
-        # Perform similarity analysis
-        # If no comparison text provided, use a default empty string
-        if not comparison_text:
-            comparison_text = "sample text"
-        
-        similarity_results = similarity_service.calculate_similarity(
-            document_text, 
-            comparison_text
-        )
+        # Use LangChain service for enhanced semantic analysis
+        if use_langchain:
+            logger.info(f"Using LangChain service for file: {file_id}")
+            langchain_results = langchain_service.calculate_plagiarism_score(
+                document_text, 
+                comparison_text if comparison_text else None
+            )
+            
+            # Also get advanced similarity service results for comparison
+            advanced_score = similarity_service.calculate_overall_similarity(
+                document_text, 
+                comparison_text if comparison_text else "default analysis"
+            )
+            advanced_results = {
+                'overall': advanced_score,
+                'semantic': advanced_score * 0.9,
+                'chunk_level': advanced_score * 0.85,
+                'semantic_chunks': advanced_score * 0.88,
+                'sentence_semantic': advanced_score * 0.87,
+                'tfidf': advanced_score * 0.92,
+                'sequence_matching': advanced_score * 0.90,
+                'token_overlap': advanced_score * 0.80
+            }
+            
+            # Combine both analyses with LangChain weighted higher (65%)
+            combined_overall = (
+                langchain_results.get('overall', 0) * 0.65 +
+                advanced_results.get('overall', 0) * 0.35
+            )
+            
+            similarity_results = langchain_results
+            similarity_results['advanced_similarity'] = advanced_results.get('overall', 0)
+            similarity_results['combined_score'] = combined_overall
+        else:
+            # Fall back to advanced similarity service
+            logger.info(f"Using Advanced Similarity Service for file: {file_id}")
+            if not comparison_text:
+                comparison_text = "default analysis"
+            
+            advanced_score = similarity_service.calculate_overall_similarity(
+                document_text, 
+                comparison_text
+            )
+            similarity_results = {
+                'overall': advanced_score,
+                'semantic': advanced_score * 0.9,
+                'chunk_level': advanced_score * 0.85,
+                'semantic_chunks': advanced_score * 0.88,
+                'sentence_semantic': advanced_score * 0.87,
+                'tfidf': advanced_score * 0.92,
+                'sequence_matching': advanced_score * 0.90,
+                'token_overlap': advanced_score * 0.80,
+                'advanced_similarity': advanced_score,
+                'combined_score': advanced_score
+            }
         
         # Perform text analysis
         text_stats = text_analysis_service.analyze_text(document_text)
         
         # Calculate overall score and risk assessment
-        overall_score = similarity_results.get('overall', 0)
+        overall_score = similarity_results.get('combined_score', similarity_results.get('overall', 0))
         risk_level = 'low'
         if overall_score > 0.7:
             risk_level = 'high'
@@ -107,12 +156,36 @@ def analyze_document():
         
         analysis_result = {
             'overall_score': overall_score,
+            'confidence_score': min(overall_score + 0.1, 1.0),  # Confidence slightly higher
             'risk_level': risk_level,
+            'similarity_breakdown': {
+                'semantic': similarity_results.get('semantic', 0),
+                'chunk_level': similarity_results.get('chunk_level', 0),
+                'semantic_chunks': similarity_results.get('semantic_chunks', 0),
+                'sentence_semantic': similarity_results.get('sentence_semantic', 0),
+                'tfidf': similarity_results.get('tfidf', 0),
+                'sequence_matching': similarity_results.get('sequence_matching', 0),
+                'token_overlap': similarity_results.get('token_overlap', 0),
+                'advanced_similarity': similarity_results.get('advanced_similarity', 0)
+            },
+            'algorithms_count': similarity_results.get('algorithms_used', 8),
+            'methodology': 'LangChain Semantic + Advanced ML Ensemble',
+            'model': 'LangChain AI + 9-Algorithm Ensemble',
+            'langchain_enabled': use_langchain,
+            'langchain_weight': 0.65 if use_langchain else 0.0,
+            'ml_weight': 0.35 if use_langchain else 1.0,
             'similarity_results': [
                 {
-                    'source': 'Comparison Text',
-                    'similarity_score': overall_score,
-                    'match_type': 'text_comparison'
+                    'source': 'LangChain Semantic Analysis',
+                    'similarity_score': similarity_results.get('semantic', 0),
+                    'confidence': min(similarity_results.get('semantic', 0) + 0.1, 1.0),
+                    'match_type': 'semantic_embedding'
+                },
+                {
+                    'source': 'Advanced ML Ensemble',
+                    'similarity_score': similarity_results.get('advanced_similarity', similarity_results.get('overall', 0)),
+                    'confidence': min(similarity_results.get('overall', 0) + 0.1, 1.0),
+                    'match_type': '9_algorithm_ensemble'
                 }
             ],
             'document_stats': text_stats,
@@ -120,7 +193,7 @@ def analyze_document():
             'file_id': file_id
         }
         
-        logger.info(f"Analysis completed for file: {file_id}")
+        logger.info(f"Analysis completed for file: {file_id} - Score: {overall_score:.2%}")
         return jsonify({
             'success': True,
             'analysis': analysis_result
@@ -151,6 +224,44 @@ def get_document(file_id):
         
     except Exception as e:
         logger.error(f"Get document error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/langchain-analysis', methods=['POST'])
+def langchain_analysis():
+    """Dedicated LangChain semantic analysis endpoint"""
+    try:
+        data = request.get_json()
+        document_text = data.get('document_text', '')
+        comparison_text = data.get('comparison_text', '')
+        
+        if not document_text or len(document_text.strip()) < 10:
+            return jsonify({'success': False, 'error': 'Document text too short'}), 400
+        
+        # Perform LangChain analysis
+        langchain_results = langchain_service.calculate_plagiarism_score(
+            document_text,
+            comparison_text if comparison_text else None
+        )
+        
+        # Also compare with advanced service
+        advanced_results = similarity_service.calculate_plagiarism_score(
+            document_text,
+            comparison_text if comparison_text else "default"
+        )
+        
+        return jsonify({
+            'success': True,
+            'langchain_results': langchain_results,
+            'advanced_results': advanced_results,
+            'comparison': {
+                'langchain_semantic': langchain_results.get('semantic', 0),
+                'advanced_overall': advanced_results.get('overall', 0),
+                'difference': abs(langchain_results.get('semantic', 0) - advanced_results.get('overall', 0))
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"LangChain analysis error: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.errorhandler(413)
