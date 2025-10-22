@@ -2,6 +2,41 @@
 
 A comprehensive web-based plagiarism detection system powered by **LangChain** and advanced machine learning. Uses semantic embeddings and multi-algorithm ensemble for highly accurate plagiarism detection.
 
+---
+
+## 🔗 Quick Links
+
+### 📌 **Access the Project**
+- **GitHub Repository:** https://github.com/imad-collab/AI-Plagarism-Detection
+- **Live Application:** Run locally on `http://127.0.0.1:5001`
+- **Issue Tracker:** https://github.com/imad-collab/AI-Plagarism-Detection/issues
+
+### 📖 **Documentation**
+- [📄 Feature Overview](./HIGHLIGHTING_FEATURE.md)
+- [🧪 Testing Guide](./HIGHLIGHTING_TEST_GUIDE.md)
+- [⚡ Quick Start](./TEXT_HIGHLIGHTING_QUICKSTART.md)
+- [✅ Implementation Summary](./IMPLEMENTATION_COMPLETE.md)
+
+### 🎯 **Share This Project**
+
+#### GitHub Badge
+```markdown
+[![AI Plagiarism Detector](https://img.shields.io/badge/AI-Plagiarism%20Detector-brightgreen)](https://github.com/imad-collab/AI-Plagarism-Detection)
+```
+
+#### Simple Link for PDF
+```
+https://github.com/imad-collab/AI-Plagarism-Detection
+```
+
+#### QR Code Ready Link
+The repository URL can be converted to a QR code for easy mobile access:
+```
+https://github.com/imad-collab/AI-Plagarism-Detection
+```
+
+---
+
 ## ✨ Features
 
 - **🤖 LangChain Integration**: AI-powered semantic analysis using HuggingFace embeddings
